@@ -1,0 +1,14 @@
+Sum EXtra ONES:
+seed 1682022612826.0.8265008332790409
+start_sim.html:292 nu score: 0.49945608930181895
+start_sim.html:293 ----------------------------------------
+start_sim.html:291 seed 1682022627571.0.5651279333410184
+start_sim.html:292 nu score: 0.4385653270410545
+start_sim.html:293 ----------------------------------------
+7[Violation] 'setTimeout' handler took <N>ms
+start_sim.html:291 seed 1682023261140.0.836614422044812
+start_sim.html:292 nu score: 0.4023719275063517
+start_sim.html:293 ----------------------------------------
+start_sim.html:291 seed 1682023805254.0.839612865199785
+start_sim.html:292 nu score: 0.39474133491421365
+start_sim.html:293 ----------------------------------------

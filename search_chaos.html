@@ -1,0 +1,441 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+		<script src="bundle.js"></script>
+		<script src="PseudRand.js"></script>
+        <script src="gpu-browser.min.js"></script>
+        <!-- <script src="https://unpkg.com/gpu.js@2.15.2/dist/gpu-browser.min.js"></script> -->
+		<script type="text/javascript" src="p5.min.js"></script>
+
+        <script src="StdNn.js"></script>
+        <script src="world_kernels.js"></script>
+        <script src="environment_puzzles.js"></script>
+        
+        <script src="ICA_HelperFuncs.js"></script>
+        <script src="ICA_v13.js"></script>
+
+        <style>
+            body{
+                background-color: rgb( 83, 106, 109 );
+            }
+            #p5BoyCanvas{
+                border: 5px solid black;
+                max-width: 660px;
+            }
+            .hidden{
+                transition: all 1s ease-in-out !important;
+                opacity:0;
+                max-height:0;
+                max-width:0;
+                display:none;
+                padding:0 !important;
+                margin:0 !important;
+                border:none !important;
+                overflow:hidden;
+            }
+            .disable-selectt {
+                user-select: none; /* supported by Chrome and Opera */
+                -webkit-user-select: none; /* Safari */
+                -khtml-user-select: none; /* Konqueror HTML */
+                -moz-user-select: none; /* Firefox */
+                -ms-user-select: none; /* Internet Explorer/Edge */
+                -webkit-user-drag: none;
+            }
+            .gene-manager {
+                min-width: 200px;
+                float: right;
+                max-height: 440px;
+                border: 3px red solid;
+                overflow-y: scroll;
+                z-index: 2;
+                padding: 3px;
+            }
+            .gene-entry {
+                border: 1px white solid;
+                padding: 3px;
+            }
+            .gene-selected {
+                background-color: coral;
+            }
+        </style>
+    </head>
+
+    <body>
+
+
+        <canvas class="hidden" id="canvForGPUToUse"></canvas>
+
+        <p>Juice Grid</p>
+		<br>
+		<hr>
+		<button id="sstop" onclick="toggleRunner()">stop</button>
+		<!--<button id="framep" onclick="oneFrame()">frame+</button> -->
+        <button id="nuSeed" onclick="resetSeeds()">generate nu seed</button>
+		<br>
+		
+		<span>seed history:</span>
+		<select id="preSeenGene" onchange="getSqitchup(this)">
+			<option value="---">---</option>
+			<option value="1681708080512.0.9307232011138509">1681708080512.0.9307232011138509</option>
+			<option value="1681708220161.0.4385224282307092">1681708220161.0.4385224282307092</option>
+			<option value="1681708281823.0.15892884697086362">1681708281823.0.15892884697086362</option>
+			<option value="1681708559810.0.14730087448417084">1681708559810.0.14730087448417084</option>
+			
+            
+		</select>
+
+        
+		<span>scoring function:</span>
+        <select id="preSeenGene" onchange="changeEnvironmentScoringFunction(this)">
+			<option value="-none-">-none-</option>
+			<option selected value="xor">xor</option>
+		</select>
+
+		<br>
+        <span>previous seeds:</span>
+        <textarea readonly cols="33" id="prevSeeds"></textarea>
+
+		<br>
+        <span>custom seed:</span>
+		<input type="text" id="customDefiendSeed" name="fname" placeholder="1381743907868.0.6827750727547593">
+		<button id="loadCustomSeed" onclick="customLoad()">load</button>
+
+		<br>
+        <!-- Right side-->
+        <div class="gene-manager" id="gnLibrary">
+            
+        </div>
+
+
+        <!-- Left side-->
+        <div id="p5BoyCanvas">
+        </div>
+
+        
+
+		<p>Current Seed:</p>
+
+		<p id="seedDisplayer">
+        </p>
+
+        <p></p>
+
+		<hr>
+		<br>
+
+        <p>Simulation time index: <span id="timeShower"></span></p>
+        <p>Steps per frame: <span id="stpsPerFrm"></span></p>
+        <p>Computation time per frame: <span id="msTime"></span></p>
+
+		<br>
+		<hr>
+
+        <script>
+            // Global variable declaration
+
+            // Audio controls (disabled)
+            var audioContext = null;
+            var TOTAL_OSCS = 3; // for dynamic sound gerneartion (disabled)
+            var OSCS = null;
+            var gainNode = null;
+
+            // These seeds dictate the current config for ICA and Environment objects
+            var startSeed = "";
+            var randWorldSeed = "";
+            var randBoySeed = "";
+            var randEnvSeed = "";
+
+            // For fast processing
+            //var FRAME
+            var STEPS_PER_FRAME = 27;//25;// artificially speed it up
+            var aveTimesPerFrame = ( new Array( this.totalInputs ) ).fill( 0 );
+            var frameTimeIndex = 0;
+            var visualTimeStiffle = 44; // 40 ms per p5js frame this is about ~24 frames per second
+            var tweakGenome = "";
+
+            // Current Environment + CA displayed on screen
+            var WORLD = null;//new World( randWorldSeed, document.getElementById( 'canvForGPUToUse' ) );
+            var running = true;
+            var BOY = null;
+            var DESIRED_BOY_SIZE = 26;
+
+            var LEAST_ERROR = 99999;
+
+            var INVESTIGATIVE_PU = null;
+
+            var ENV = new Environment_Puzzle(randEnvSeed)
+            ENV.timeIndex = 0;
+
+            var SEEDS_TO_LOOP = [
+                "1682197843124.0.4486529861949189",//like 43
+                "1682198522797.0.14869116438378316",     //like 32
+                "1682199739894.0.6944526969793823",      //nmice one
+                "1682198967180.0.1909125310379114",  //47
+                "1682199784797.0.3034564388902439",  //44
+                "1682200096784.0.19756876132214707" //34
+            ];
+            var CURRENT_LOOP_INDEX = Math.floor( Math.random() * SEEDS_TO_LOOP.length );
+
+            // Gene lister
+            var GENE_LIBRARY = [];
+
+
+            resetSeeds(null);
+
+            function resetSeeds(forcedSeed){
+                if(BOY && BOY.p5Ref){
+                    BOY.p5Ref.remove();
+                }
+                CURRENT_LOOP_INDEX++;
+                //console.log("CURRENT_LOOP_INDEX", CURRENT_LOOP_INDEX)
+                CURRENT_LOOP_INDEX = CURRENT_LOOP_INDEX % SEEDS_TO_LOOP.length
+                let seedToUse = SEEDS_TO_LOOP[CURRENT_LOOP_INDEX];
+                // console.log("CURRENT_LOOP_INDEX", CURRENT_LOOP_INDEX);
+                //"1680588971667.0.7229796103317296"    <- nice one of a super critical example
+                startSeed = ""+seedToUse;   //use prebuilt
+                startSeed = Date.now()+"."+Math.random();//Ole faithful doin it normal
+
+                if(forcedSeed && (""+forcedSeed).length > 7) startSeed = "" + forcedSeed;
+
+                document.getElementById('prevSeeds').value += startSeed + '\n';
+
+                //console.log("Entire Start Seed: " + startSeed);
+                document.getElementById('seedDisplayer').innerHTML = startSeed;
+
+                
+
+                // Oracle control occurs here
+                randWorldSeed = "ws" + startSeed;
+                randBoySeed = "gs" + startSeed;
+                randEnvSeed = "es" + startSeed;
+                // console.log( 'Rand world seed:', randWorldSeed );
+                // console.log( 'Rand grid seed:', randBoySeed );
+                // console.log( 'Rand env seed:', randEnvSeed );
+
+                running = true;
+
+
+                // SEE IF THERE EXISTS A GENE TO TWEAK
+                if(tweakGenome.length > 0){
+                    let og = new ICA_v13( // Create new Interactive Cellular Automata v13 object
+                        DESIRED_BOY_SIZE, 
+                        randBoySeed, 
+                        null
+                    );
+                    let tweakedBoy = og.getTweakedGene(0.1, 'tweakval'+Date.now()+"."+Math.random());//og.totalGene
+                    BOY = new ICA_v13( // Create new Interactive Cellular Automata v13 object
+                        DESIRED_BOY_SIZE, 
+                        randBoySeed, 
+                        document.getElementById('p5BoyCanvas')
+                    );
+                }
+                else{
+                    BOY = new ICA_v13( // Create new Interactive Cellular Automata v13 object
+                        DESIRED_BOY_SIZE, 
+                        randBoySeed, 
+                        document.getElementById('p5BoyCanvas')
+                    );
+                }
+                // console.log(tweakGenome);
+
+                ENV = new Environment_Puzzle(randEnvSeed)
+                ENV.timeIndex = 0;
+
+                INVESTIGATIVE_PU = null;
+            }
+
+            function customLoad(){
+                var value = '' + document.getElementById('customDefiendSeed').value;  
+                resetSeeds('' + value);
+            }
+
+            function getSqitchup(selectObject) {
+                var value = selectObject.value;  
+                resetSeeds('' + value);
+            }
+
+            function changeEnvironmentScoringFunction(selectObject){
+
+            }
+
+            function tweakGene(event){
+                var clickedElement = event.target.parentNode;
+                selectGeneFromList();
+
+                console.log(clickedElement.children);
+                console.log('tweak gene', clickedElement.children[0].innerText);
+                console.log('prev score:', clickedElement.children[1].innerText);
+
+                if(!clickedElement.classList.contains('gene-selected')){
+                    tweakGenome = "" + clickedElement.children[0].innerText;
+                    clickedElement.classList.add('gene-selected');
+                }
+                else {
+                    tweakGenome = "";
+                    clickedElement.classList.remove('gene-selected');
+                }
+
+            }
+
+            function selectGeneFromList(){
+                let gList = document.getElementById('gnLibrary');
+                for(let j = 0;j < gList.children.length;j++){
+                    gList.children[j].classList.remove('gene-selected');
+                }
+            }
+
+            function addGeneToLibrary(seeed, score){
+                let gn = document.getElementById('gnLibrary');
+
+                let entry = document.createElement('div');
+                entry.setAttribute('class', 'gene-entry');
+
+                entry.innerHTML = 
+                    "<p style=\"z-index: 3;\">" + seeed + "</p>" +
+                    "<p style=\"z-index: 3;\">" + score + "</p>";
+
+                let butt = document.createElement('button');
+                butt.innerText = "tweak";
+                butt.setAttribute('onclick', 'tweakGene(event)');
+
+                entry.appendChild(butt);;
+                gn.appendChild(entry);
+
+            }
+            
+            function stopSound(){
+                if(OSCS){
+                    for(let v = 0;v < OSCS.length;v++){
+                        OSCS[v].stop();
+                    }
+                    OSCS = null;
+                    audioContext = null;
+                    gainNode = null;
+                }
+            }
+            function startSound(){
+                if(!OSCS){
+                    OSCS = new Array(TOTAL_OSCS);
+
+                    // Audi ocontrol
+                    audioContext = new AudioContext();
+                    gainNode = audioContext.createGain();
+                    gainNode.gain.value = 0.3;
+
+                    for(let v = 0;v < OSCS.length;v++){
+                        OSCS[v] = audioContext.createOscillator(); // create an OSCS node
+                        OSCS[v].frequency.setValueAtTime(600, audioContext.currentTime); // set the frequency of the OSCS
+                        OSCS[v].connect(gainNode);
+                        OSCS[v].connect(audioContext.destination); // connect the OSCS to the audio output
+                        OSCS[v].start(); // start the OSCS
+                    }
+                }
+                else{
+                    for(let v = 0;v < OSCS.length;v++){
+                        OSCS[v].start();
+                    }
+                }
+            }
+
+            function toggleRunner(){
+                let hub = document.getElementById('sstop');
+                running = !running
+                hub.innerText = ( !running) ? "start" : "stop";
+            }
+
+            
+
+            // Constant loop
+            function moveFrame(){
+
+                if(BOY && BOY.the_juice_grid){
+                    
+                    // Record computation time metrics (START)
+                    let startComputationTime = Date.now();
+
+
+                    // Get score
+                    let final_score = null;
+                    for(let w = 0;w < STEPS_PER_FRAME;w++){
+                        final_score = Environment_Puzzle.stepAgentAwareness(BOY, ENV);
+                        if(final_score !== null) w = STEPS_PER_FRAME;
+                    }
+
+                    // Record computation time metrics (END)
+                    let deltaComputeTime = Date.now() - startComputationTime;
+                    aveTimesPerFrame[frameTimeIndex%aveTimesPerFrame.length] = deltaComputeTime;
+                    frameTimeIndex++;
+
+                    //console.log("final_score", final_score)
+                    if(final_score !== null){
+
+                        if(LEAST_ERROR >= final_score){
+                            LEAST_ERROR = final_score;
+                            addGeneToLibrary(startSeed, final_score);
+                        }
+
+                        
+                        resetSeeds(null);
+                    }
+
+                    // Aggregate information for new tone values
+                    //if(OSCS){
+                    //    let freqRange = 600;
+                    //    // Get ave R
+                    //    OSCS[0].frequency.exponentialRampToValueAtTime(740 + Math.floor(BOY.aveR*freqRange), audioContext.currentTime);
+                    //    OSCS[1].frequency.exponentialRampToValueAtTime(590 + Math.floor(BOY.aveG*300), audioContext.currentTime);
+                    //    OSCS[2].frequency.exponentialRampToValueAtTime(40 + Math.floor(BOY.aveB*400), audioContext.currentTime);
+                    //}
+
+                }
+
+
+                // Update counter:
+                let dd = document.getElementById("timeShower");
+                dd.innerHTML = "" + BOY.oracle.timeindex;
+
+                document.getElementById("stpsPerFrm").innerHTML = "" + STEPS_PER_FRAME;
+
+                let aveT = 0;
+                for(let b = 0;b < aveTimesPerFrame.length;b++) aveT += aveTimesPerFrame[b];
+                aveT /= aveTimesPerFrame.length;
+                aveT = Math.floor(aveT);
+
+                document.getElementById("msTime").innerHTML = "" + aveT + " ms";
+
+
+                if(INVESTIGATIVE_PU && false){
+                    let gu = INVESTIGATIVE_PU;
+                    let pot = Math.floor(gu.potential.juice_concentration/gu.threshold*100)
+
+                    dd = document.getElementById("puTypeInfo");
+
+                    dd.innerHTML = "potential: " + pot + "%" + "<br>" +
+                        "ins: " + gu.in_bonds.length + "<br>" + 
+                        "outs: " + gu.out_bonds.length + "<br>" +
+                        "pfj_conc: " + gu.postfire.juice_concentration
+
+                }
+                
+            }
+
+
+            function oneFrame(){
+                if(!running){
+                    moveFrame()
+                }
+            }
+
+            function tick() {
+                if(running){
+                    moveFrame();
+                }
+                setTimeout(tick, visualTimeStiffle)
+            };
+            tick();
+            //requestAnimationFrame(tick);
+        </script>
+
+        
+    </body>
+</html>
