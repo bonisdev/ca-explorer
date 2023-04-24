@@ -93,7 +93,14 @@ function CustomRandom_sha(newHash, preduns, forcedGene){
     };
 
     this.END_GENE = function(){
-		if(this.fgMode) return this.fgGene;
+		
+		if(this.fgMode){
+			if(this.fgInd !== this.fgGene.length-1){
+				console.log('ERROR gene only got to', this.fgInd, 'shouldve been', this.fgGene.length, "- 1");
+				while(true){}
+			}
+			return this.fgGene;
+		}
         return this.totalVals;
     };
 

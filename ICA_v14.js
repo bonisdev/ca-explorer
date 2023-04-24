@@ -28,11 +28,11 @@ class ICA_v14 {
 
         // Inputs of the correct size
         this.totalInputs = 3;
-        this.inputCoords = [];
+        this.inputCoords = (new Array(this.totalInputs)).fill( null );
         
         // Outputs that do not overlap the inputs
         this.totalOutputs = 2;
-        this.outputCoords = [];
+        this.outputCoords = (new Array(this.totalOutputs)).fill( null );
 
         this.ioSeed = "ioSeed";// + Math.random();
         if(seed_params.ioSeed){
@@ -40,11 +40,15 @@ class ICA_v14 {
         }
 
         this.setNonOverlappingInputsOutputs(this.ioSeed);
+        //this.physicsDistributorInputsOutputs(this.ioSeed);
+
+        this.rewardJuiceModifier = 1;
+        this.painJuiceModifier = 1;
 
         this.mostRecentInput = ( new Array( this.totalInputs ) ).fill( 0 );
         this.mostRecentOutput = ( new Array( this.totalOutputs ) ).fill( 0 );
 
-        this.aveR = 0;  // used for visual accumulation of colour and what's going on
+        this.aveR = 0;
         this.aveG = 0;
         this.aveB = 0;
 
@@ -61,13 +65,13 @@ class ICA_v14 {
 
 
         // List the juice counts
-        this.amountOfAgentJuices = 3;// <- defines the language for defining agent reward function
+        this.amountOfAgentJuices = 2;
         this.aKeyDown = false;
         this.dKeyDown = false;
 
-        this.amountOfStateJuices_PerPU = 3;// <- defines the // <- defines the state that can only be changed during rest // + Math.floor(this.rand.GET_GENE() * 2);
-        this.amountOfActivationJuices_PerPU = 3;// <- hen activating an input these are all nudge_mega()
-        this.amountOfCrystalizedJuices_PerPU = 3;// <- juices w no decay
+        this.amountOfStateJuices_PerPU = 5;
+        this.amountOfActivationJuices_PerPU = 5;
+        this.amountOfCrystalizedJuices_PerPU = 5;
 
         this.totalAmountOfJuices = 
             this.amountOfAgentJuices + 
@@ -83,7 +87,8 @@ class ICA_v14 {
             );
         }
 
-        this.output_fire_threshold = this.rand.GET_GENE()*0.55;// + 0.3
+        this.output_fire_threshold = this.rand.GET_GENE()*0.75 + 0.15;
+        this.agentJuiceImportanceModifier = 6;//(this.rand.GET_GENE() * 3.5) + 1.2;
 
         this.total_num_of_pus = this.grid_size * this.grid_size;
 
@@ -96,24 +101,16 @@ class ICA_v14 {
             }
         }
 
-////////// Create the NN's
-////////// 
-        // The general update function intakes:
-        //      
         this.generalUpdate = new StdNn(
             [
-                (this.totalAmountOfJuices - this.amountOfAgentJuices),  // ave of state and activate neighbours, then current cells crystalized values
+                (this.totalAmountOfJuices),// - this.amountOfAgentJuices),  // ave of state and activate neighbours, then current cells crystalized values
+                //(this.totalAmountOfJuices),
                 this.amountOfStateJuices_PerPU + 
                 this.amountOfActivationJuices_PerPU + 
                 this.amountOfCrystalizedJuices_PerPU
             ], 
             this.rand
         );
-
-////////// Update the thresholds based on # of connections
-////////// 
-
-
         // Contains the global meta info on the whole network
         this.oracle = {
 			"timeindex": 0,		//increases one per time step (signals take one time step to leave cellA and be received by CellB)
@@ -122,31 +119,19 @@ class ICA_v14 {
 
 
         // Save the gene made
-        this.totalGene = this.rand.END_GENE()
-        //console.log('total gene for this boy:');
-        //console.log(this.totalGene);
+        this.totalGene = this.rand.END_GENE();
 
-        // Create the threshold
-
-
-
-
-
-        // P5JS canvas reference
         this.p5Ref = null;
         
         // Set up the visuals
         if( p5CanvsIdToUse !== null ){
-            //this.initP5Logic();
             let sketch = function( p ) {
-
                 p.setup = function() {
                     p.createCanvas( 640, 640 );
                     p.background( 20, 10, 10 );
                     p.rectMode( p.CENTER );
                     p.ellipseMode( p.CENTER );
                     p.frameRate( 26 );
-
                     // p.osc = new p5.TriOsc();
                     // p.osc.amp(0.5);
 
@@ -176,42 +161,35 @@ class ICA_v14 {
                         BOY.aveR /= (3*BOY.grid_size*BOY.grid_size);
                         BOY.aveG /= (3*BOY.grid_size*BOY.grid_size);
                         BOY.aveB /= (3*BOY.grid_size*BOY.grid_size);
-
-                        
-                        // Draw the environment (pendulum) to solve
-                        // DONT NEED **** THISSS ONE **** ANYMORE
-                        // ENV.drawPendulumPuzzle(450, 150, p);
-
                         
 
                         // Test out random NN distribution
                         let endY = p.PUSize * BOY.grid_size;
+                        let endX = p.PUSize * BOY.grid_size;
+
                         ENV.drawXORPuzzle(100, endY + 100, p);
                         ENV.drawLessonScores(200, endY + 100, p);
                         p.drawPulseHistory(200, endY + 150);
+                        p.drawAgentPhysiology(100, endY + 150);
                         //p.scatterShotRandomNN(100, endY + 150, BOY.generalUpdate);//BOY.testNN)
 
 
                         // Draw the one PU in detail
                         if(INVESTIGATIVE_PU ){
 
-                            let totalDrawn = 0;
                             for(let bb = 0;bb < INVESTIGATIVE_PU.stateJuices.length;bb++){
                                 let jhhh = INVESTIGATIVE_PU.stateJuices[bb];
-                                p.drawSingleAttyObject(jhhh, (bb+totalDrawn) * 9 + 390, 250);
-                                totalDrawn++;
+                                p.drawSingleAttyObject(jhhh, endX + 30 + bb*23, 250);
                             }
-                            totalDrawn+=2;
+
                             for(let bb = 0;bb < INVESTIGATIVE_PU.activationJuices.length;bb++){
                                 let jhhh = INVESTIGATIVE_PU.activationJuices[bb];
-                                p.drawSingleAttyObject(jhhh, (bb+totalDrawn+2) * 9 + 390, 250);
-                                totalDrawn++;
+                                p.drawSingleAttyObject(jhhh, endX + 30 + bb*23, 250 + 23);
                             }
-                            totalDrawn+=2;
+
                             for(let bb = 0;bb < INVESTIGATIVE_PU.crystalizedJuices.length;bb++){
                                 let jhhh = INVESTIGATIVE_PU.crystalizedJuices[bb];
-                                p.drawSingleAttyObject(jhhh, (bb+totalDrawn+4) * 9 + 390, 250);
-                                totalDrawn++;
+                                p.drawSingleAttyObject(jhhh, endX + 30 + bb*23, 250 + 23 + 23);
                             }
                         }
 
@@ -245,7 +223,6 @@ class ICA_v14 {
                     BOY.aveG = 0;
                     BOY.aveB = 0;
 
-
                     BOY.aveR += gu.stateJuices.reduce((accumulator, atty) => {
                         return accumulator + atty.val*Math.floor(255 / BOY.amountOfStateJuices_PerPU);
                     }, 0);
@@ -259,7 +236,10 @@ class ICA_v14 {
                     // Show the fire juice
                     p.push();
                         // Show base power (out of 255 white)
-                        p.translate(xx * p.PUSize + p.PUSize/2, yy * p.PUSize + p.PUSize/2);
+                        p.translate(
+                            xx * p.PUSize + p.PUSize/2, 
+                            yy * p.PUSize + p.PUSize/2
+                        );
                         p.fill( BOY.aveR, BOY.aveG, BOY.aveB);
                         p.rect(0, 0, p.PUSize, p.PUSize);
                     p.pop();
@@ -343,6 +323,19 @@ class ICA_v14 {
                     p.pop();
 
                 };
+
+                p.drawAgentPhysiology = function(xx, yy, nn){
+                    p.push();
+                        // Show base power (out of 255 white)
+                        p.translate(xx , yy);
+                        p.fill(0, Math.floor(BOY.rewardJuiceModifier*255), 0);
+                        p.rect(0, 0, p.PUSize, p.PUSize);
+
+                        p.fill(Math.floor(BOY.painJuiceModifier*255), 0, 0);
+                        p.rect(p.PUSize + 2, 0, p.PUSize, p.PUSize);
+                    
+                    p.pop();
+                };
             };
 
             this.p5Ref = new p5( sketch, p5CanvsIdToUse );
@@ -356,22 +349,60 @@ class ICA_v14 {
         let ents = new Array(this.totalInputs + this.totalOutputs);
         for(let i = 0;i < ents.length;i++){
             ents[i] = {
-                x: this.grid_size / 2,
-                y: this.grid_size / 2
+                x: this.grid_size / 2 + ioRand.random(),
+                y: this.grid_size / 2 + ioRand.random(),
+                vx: 0,
+                vy: 0
             };
         }
 
-        for(let i = 0;i < ents.length;i++){
-            if(ents[i].x > this.grid_size) ents[i].x = this.grid_size;
-            if(ents[i].y > this.grid_size) ents[i].y = this.grid_size;
-            if(ents[i].x < 0) ents[i].x = 0;
-            if(ents[i].y < 0) ents[i].y = 0;
+        let wallBuffer = this.grid_size / 5
+        let radiusBounce = this.grid_size/4
 
-            for(let j = 0;j < ents.length;j++){
-                if(i !== j){
+        for(let stepper = 0;stepper < 2;stepper++){
+            for(let i = 0;i < ents.length;i++){
+                
 
+                for(let j = 0;j < ents.length;j++){
+                    if(i !== j){
+                        let dd = Math.hypot(ents[i].x-ents[j].x, ents[i].y-ents[j].y);
+                        let ang = Math.atan2(ents[j].y - ents[i].y, ents[j].x - ents[i].x);
+                        ents[i].vx += Math.cos(ang+Math.PI)*0.04 * (2/dd);
+                        ents[i].vy += Math.sin(ang+Math.PI)*0.04 * (2/dd);
+                    }
+                }
+
+                let dd = Math.hypot(ents[i].x-0, ents[i].y-0);
+                let ang = Math.atan2(this.grid_size/2 - ents[i].y, this.grid_size/2 - ents[i].x);
+                ents[i].vx += Math.cos(ang)*0.4 
+                ents[i].vy += Math.sin(ang)*0.4
+
+                ents[i].vx *= 0.96;
+                ents[i].vy *= 0.96;
+
+                ents[i].x += ents[i].vx;
+                ents[i].y += ents[i].vy;
+
+                if(ents[i].x >= this.grid_size) ents[i].x = this.grid_size-0.001;
+                if(ents[i].y >= this.grid_size) ents[i].y = this.grid_size-0.001;
+                if(ents[i].x < 0) ents[i].x = 0;
+                if(ents[i].y < 0) ents[i].y = 0;
+            }
+        }
+
+        for(let b = 0;b < this.inputCoords.length + this.outputCoords.length;b++){
+            if(b < this.inputCoords.length){
+                this.inputCoords[b] = {
+                    x: Math.floor(ents[b].x),
+                    y: Math.floor(ents[b].y)
+                }
+            } else{
+                this.outputCoords[b-this.inputCoords.length] = {
+                    x: Math.floor(ents[b].x),
+                    y: Math.floor(ents[b].y)
                 }
             }
+            
         }
 
     }
@@ -381,23 +412,22 @@ class ICA_v14 {
         let ioRand = new CustomRandom_sha(seeed);
 
         // Randomly place the input coords
-        this.inputCoords = [];
         for(let jj = 0;jj < this.totalInputs;jj++){
             let potX = Math.floor(ioRand.random() * this.grid_size);
             let potY = Math.floor(ioRand.random() * this.grid_size);
 
             let conflicIndex = -1;
             for(let cc = 0;cc < this.inputCoords.length;cc++){
-                if(this.inputCoords[cc].x === potX && this.inputCoords[cc].y === potY){
+                if(this.inputCoords[cc] && this.inputCoords[cc].x === potX && this.inputCoords[cc].y === potY){
                     conflicIndex = cc;
                 }
             }
 
             if(conflicIndex === -1){    // TODO : Potential ERROR here infintie loop
-                this.inputCoords.push({
+                this.inputCoords[jj] = {
                     x: potX,
                     y: potY
-                });
+                };
             }
             else{
                 jj -=1;
@@ -405,7 +435,6 @@ class ICA_v14 {
         }
 
         // Randomly place the output coords
-        this.outputCoords = [];
         for(let jj = 0;jj < this.totalOutputs;jj++){
             let potX = Math.floor(ioRand.random() * this.grid_size);
             let potY = Math.floor(ioRand.random() * this.grid_size);
@@ -414,16 +443,16 @@ class ICA_v14 {
 
             let conflicIndex = -1;
             for(let cc = 0;cc < amalgamatedCoords.length;cc++){
-                if(amalgamatedCoords[cc].x === potX && amalgamatedCoords[cc].y === potY){
+                if(amalgamatedCoords[cc] && amalgamatedCoords[cc].x === potX && amalgamatedCoords[cc].y === potY){
                     conflicIndex = cc;
                 }
             }
 
             if(conflicIndex === -1){    // TODO : Potential ERROR here infintie loop
-                this.outputCoords.push({
+                this.outputCoords[jj] = {
                     x: potX,
                     y: potY
-                });
+                };
             }
             else{
                 jj -=1;
@@ -477,19 +506,37 @@ class ICA_v14 {
         return newPU;
     }
 
+    handlePhysiologicalSignal(decimalError){//only ever between 0 and 1
+        let p = 1 - decimalError;
+        this.rewardJuiceModifier = p;
+        this.rewardJuiceStimulation(this.rewardJuiceModifier);
+        
+        p = decimalError;
+        this.painJuiceModifier = p;
+        this.painJuiceStimulation(this.painJuiceModifier);
+        
+        // this.flatline();
+    }
+    
+    flatline(){
+        this.painJuiceModifier = 0;
+        this.rewardJuiceModifier = 0;
+        for(let i = 0;i < this.agentJuices.length;i++){
+            Atty.set_stim(this.agentJuices[i], 0);
+        }
+    }
+
     rewardJuiceStimulation(modifier){
         let rewardJooses = Math.floor(this.amountOfAgentJuices/2);
         for(let i = 0;i < rewardJooses;i++){
-            //Juice.nudge(this.agentJuices[i], modifier);
-            Juice.input_fire_mega_nudge(this.agentJuices[i], modifier);
+            Atty.set_stim(this.agentJuices[i], modifier);
         }
     }
 
     painJuiceStimulation(modifier){
         let rewardJooseLengthSTart = Math.floor(this.amountOfAgentJuices/2);
         for(let i = rewardJooseLengthSTart;i < this.agentJuices.length;i++){
-            //Juice.nudge(this.agentJuices[i], modifier);
-            Juice.input_fire_mega_nudge(this.agentJuices[i], modifier);
+            Atty.set_stim(this.agentJuices[i], modifier);
         }
     }
 
@@ -504,7 +551,6 @@ class ICA_v14 {
                 let puTpStim = grriidd[this.inputCoords[v].x][this.inputCoords[v].y];
                 for(let k = 0;k < puTpStim.activationJuices.length;k++) {
                     Atty.input_stim(puTpStim.activationJuices[k]);
-                    // Juice.input_fire_SET_CONCENTRATION(puTpStim.activationJuices[k], observedInput[v]);
                 }
             }
 
@@ -516,9 +562,6 @@ class ICA_v14 {
 
         let grid = this.the_atty_grid;
         let pu = grid[i][j];
-
-           
-        
 
         // Grab the neighbour average State and activation jcuies
         let attyNeighbourTotal_activation = ( new Array( this.amountOfActivationJuices_PerPU ) ).fill( 0 );
@@ -543,9 +586,13 @@ class ICA_v14 {
             attyPersonalCrystalized[h] = pu.crystalizedJuices[h].val;
         }
 
+        
+
         // Activate base NN with these configurations
         let outputSquirts = this.generalUpdate.activate( 
-            attyNeighbourTotal_activation.concat ( attyNeighbourTotal_state.concat( attyPersonalCrystalized ) )
+            agentJuiceValues.concat( 
+                attyNeighbourTotal_activation.concat ( attyNeighbourTotal_state.concat( attyPersonalCrystalized ) ) 
+            )
         );
 
         
@@ -554,6 +601,7 @@ class ICA_v14 {
             // console.log(juiceTotals)
             // console.log(juiceGhostDeltas)
         }
+
 
         let JuicesToWriteTo = pu.activationJuices.concat( pu.stateJuices.concat( pu.crystalizedJuices ) );
 
@@ -598,21 +646,21 @@ class ICA_v14 {
         // At this point, the inputs from this observation have effected the concentraions + ghost concentrations of the activation juices
         this.oracle.timeindex++;
 
+        // Extract the agent juices, and add the 'importance' modifier on these weights
+        let agentVals = new Array(this.amountOfAgentJuices);
+        for(let u = 0;u < agentVals.length;u++){
+            agentVals[u] = this.agentJuiceImportanceModifier * this.agentJuices[u].val;
+        }
+
         let grid = this.the_atty_grid;
-        // Loop through the read grid 
         for(let i = 0;i < grid.length;i++){
             for(let j = 0;j < grid[i].length;j++){
                 // Uses the generalUpdate NN to update the potential of the juices
-                this.stepOnePU(i, j, []);
+                this.stepOnePU(i, j, agentVals);
             }
         }
-        // End of updaing grid loop
 
-
-        // All the potentials have been updated at this point,
-        // now:
-
-        // (1) - Update the juice concentrations and ghost concentrations
+        // (1) - Update the actual vals from the quantum vals (qval)s that were set before ^ (substitute read/write grids)
         for(let i = 0;i < grid.length;i++){
             for(let j = 0;j < grid[i].length;j++){
                 let pu2Step = grid[i][j];
@@ -631,7 +679,7 @@ class ICA_v14 {
                 agg += pu.stateJuices[h].val;
             }
             agg /= pu.stateJuices.length;
-            // If average of the firing juices over certain height, snagit, and SUCK DOWN activation jucies
+            // If average of the firing juices over certain height, snagit, and suck down all the state juices
             if(agg > this.output_fire_threshold){
                 finalOuts[op] = 1;
                 for(let h = 0;h < pu.stateJuices.length;h++){

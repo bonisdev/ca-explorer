@@ -16,7 +16,7 @@ function StdNn(puzzle, theRand){
 	this.sig = function(x){
 		return (1 / (1 + Math.exp(-x)));
 	};
-	this.std_signal_boost = 2;
+	this.std_signal_boost = 4;
 	this.sig_d = function(x){let v = this.sig(x); return v*(1-v);}
 	this.rel = function(x){if(x < 0) return 0; return x;};
 	this.lr = 0.247173;

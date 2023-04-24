@@ -71,18 +71,28 @@
 		<hr>
 		<button id="sstop" onclick="toggleRunner()">stop</button>
 		<!--<button id="framep" onclick="oneFrame()">frame+</button> -->
-        <button id="nuSeed" onclick="resetSeeds(null, null)">generate nu seed</button>
+        <button id="nuSeed" onclick="forceGenerateNuSeed()">generate nu seed</button>
 		<br>
 		
 		<span>seed history:</span>
 		<select id="preSeenGene" onchange="getSqitchup(this)">
 			<option value="---">---</option>
-			<option value="1681708080512.0.9307232011138509">1681708080512.0.9307232011138509</option>
-			<option value="1681708220161.0.4385224282307092">1681708220161.0.4385224282307092</option>
-			<option value="1681708281823.0.15892884697086362">1681708281823.0.15892884697086362</option>
-			<option value="1681708559810.0.14730087448417084">1681708559810.0.14730087448417084</option>
+
+            <option value="1682313486888.0.5435525115362028">1682313486888.0.5435525115362028</option>
+            <option value="1682313498958.0.12063566049400509">1682313498958.0.12063566049400509</option>
+            <option value="1682313566969.0.9739312774666244">1682313566969.0.9739312774666244</option>
+            <option value="1682313570000.0.9326770239172675">1682313570000.0.9326770239172675</option>
+
+            <option value="1682314232049.0.500818877627065">1682314232049.0.500818877627065</option>
+            <option value="1682314302795.0.5016358192218524">1682314302795.0.5016358192218524</option>
+            <option value="1682325883573.0.013716325589795408">1682325883573.0.013716325589795408</option>
+            <option value="1682338236562.0.3314514062571401">1682338236562.0.3314514062571401</option>
+
+			<option value="1682313348019.0.7849123581272277">1682313348019.0.7849123581272277</option>
+			<option value="1682313356172.0.7071687098447073">1682313356172.0.7071687098447073</option>
+			<option value="1682313425880.0.6755836157645201">1682313425880.0.6755836157645201</option>
+			<option value="1682313465245.0.7060678418511148">1682313465245.0.7060678418511148</option>
 			
-            
 		</select>
 
         
@@ -149,7 +159,7 @@
             var STEPS_PER_FRAME = 1;//25;// artificially speed it up
             var aveTimesPerFrame = ( new Array( this.totalInputs ) ).fill( 0 );
             var frameTimeIndex = 0;
-            var visualTimeStiffle = 44; // 40 ms per p5js frame this is about ~24 frames per second
+            var visualTimeStiffle = 110; // 40 ms per p5js frame this is about ~24 frames per second
             var tweakGenome = "";
 
             // Thoroughness - test the cellular automata by shaking up the biology
@@ -179,10 +189,13 @@
                 "1682313486888.0.5435525115362028",
                 "1682313498958.0.12063566049400509",
                 "1682313566969.0.9739312774666244",
-                "1682313570000.0.9326770239172675"
+                "1682313570000.0.9326770239172675",
+                "1682314232049.0.500818877627065",
+                "1682314302795.0.5016358192218524",
+                "1682325883573.0.013716325589795408",
+                "1682338236562.0.3314514062571401"
             ];
-            //1682248284214.0.3979240035740943
-            //1682252031571.0.6175452156962185
+
             var CURRENT_LOOP_INDEX = Math.floor( Math.random() * SEEDS_TO_LOOP.length );
             // Gene lister
             var GENE_LIBRARY = [];
@@ -198,17 +211,14 @@
                 CURRENT_LOOP_INDEX = CURRENT_LOOP_INDEX % SEEDS_TO_LOOP.length
                 let seedToUse = SEEDS_TO_LOOP[CURRENT_LOOP_INDEX];
                 
-
                 // ROBUST TEST THE SEED?!
                 if(GENE_ROBUSTNESS_SCORES.length === GENE_ROBUSTNESS_TARGET){
                     let actualFinalError_AfterRobustnessTesting = Math.max(...GENE_ROBUSTNESS_SCORES);
-
                     document.getElementById('prevSeeds').value += startSeed + ' ' + (Math.floor(actualFinalError_AfterRobustnessTesting*10000)) + '\n';
                     if(LEAST_ERROR >= actualFinalError_AfterRobustnessTesting || actualFinalError_AfterRobustnessTesting < 0.41){
                         LEAST_ERROR = actualFinalError_AfterRobustnessTesting;
                         addGeneToLibrary(startSeed, actualFinalError_AfterRobustnessTesting);
                     }
-
                     GENE_ROBUSTNESS_SCORES = [];
                 }
                 
@@ -221,15 +231,7 @@
                     if(forcedSeed && (""+forcedSeed).length > 7) startSeed = "" + forcedSeed;
                 }
 
-
-                
-
-                //document.getElementById('prevSeeds').value += startSeed + '\n';
-
-                //console.log("Entire Start Seed: " + startSeed);
                 document.getElementById('seedDisplayer').innerHTML = startSeed;
-
-                // console.log('start seed', startSeed, 'robustness scores', GENE_ROBUSTNESS_SCORES.length)
 
                 // Oracle control occurs here
                 randWorldSeed = "ws" + startSeed;
@@ -286,6 +288,12 @@
             }
             function decreaseStep(){
                 STEPS_PER_FRAME -= 5;
+            }
+
+            function forceGenerateNuSeed(){
+                GENE_ROBUSTNESS_SCORES = [];
+                tweakGenome = "";
+                resetSeeds(null, null);
             }
 
             function customLoad(){

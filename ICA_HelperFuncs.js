@@ -28,6 +28,11 @@ class Atty {
         att.val = 0;
         att.qval = 0;
     }
+
+    static set_stim(att, val){
+        att.val = val;
+        att.qval = val;
+    }
 }
 
 // A juice instance contains key attributes responsible for producing 

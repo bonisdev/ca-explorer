@@ -1,17 +1,16 @@
 class Environment_Puzzle{
-
-    
-    // Called ~60 times per second
     static stepAgentAwareness(boy, env){
 
-        // Get what the agent is supposed to see based on on the environment
-        let agentView = env.getAgentSensorReadings()
-        // Propogate the agent view + existing signals 
+        // Get look
+        let agentView = env.getAgentSensorReadings();
+
+        // think
         let boysOutput = boy.stepWithInput(agentView);
 
-
-        // Consciousness first
-        for(let i = 0;i < env.fpd;i++) env.step(boysOutput);
+        // react
+        let decimalError = env.step(boysOutput, boy);
+        //console.log(decimalError, "<-decimalError")
+        boy.handlePhysiologicalSignal(decimalError);
 
         return env.FINAL_SCORE;
     }
@@ -27,20 +26,6 @@ class Environment_Puzzle{
 
     getAgentSensorReadings(){
 
-        // THIS IS FOR PENDULUM
-        // let valToSend = [
-        //     // Get pressure from the sides
-        //     this.valToPulse( (-this.posX) / this.maxRange ),
-        //     this.valToPulse( (this.posX) / this.maxRange ),
-
-        //     // Get the distances of pendulum from COM
-        //     this.valToPulse( ((this.posX) - (this.massPos.x)) / this.massRestRange*0.8 ),//divided by spring length
-        //     this.valToPulse( ((-this.posX) - (this.massPos.x)) / this.massRestRange*0.8),//divided by spring length
-
-        //     // Get the height (worst pain at end)
-        //     this.valToPulse( ( ((this.massPos.y + this.massRestRange)  ) / this.massRestRange*2.0 ) )
-        // ]; 
-
         // Lesson updates every 300 time steps
         let updatedLessonIndex = 
             Math.floor( ( (0)+this.timeIndex ) / this.timePerLesson ) 
@@ -48,25 +33,21 @@ class Environment_Puzzle{
             
         // If lesson will change?!
         if(updatedLessonIndex !== this.currentLessonPlanIndex){
-            
             // Add the previous score in (currentLessonPlanIndex is not yet updated to newest updatedLessonIndex)
             this.allLessonScores.push({
                 s: this.lessonPlans[ this.currentLessonPlanIndex ][ 2 ],
                 lc: this.learningCycle
             });
-
             this.lessonPlans[ updatedLessonIndex ][ 2 ] = 0;
-
             // At the end of the lesson plan?
             if(this.currentLessonPlanIndex === this.lessonPlans.length-1){
                 this.learningCycle++;
             }
-
             // ENDING CONDITION?!
             // This makes it such that there are 3 complete learnign cycles before final scores are tallied up
             if(this.learningCycle === this.learningCycles_PerNatureConfig + 1){
-
-                // Roll over bio configuration
+                // This triggers end of lesson when final_score becomes !isNaN() 
+                // and rolls over bio configs
                 this.computeFinalScore();
             }
         }
@@ -116,7 +97,6 @@ class Environment_Puzzle{
 
         this.sunHeight = 0;
         this.sunAngle = 0
-        this.day = 0;
 
         // XOR
         // this.lessonPlans = [
@@ -139,15 +119,15 @@ class Environment_Puzzle{
             [
                 [0, 1, 0], [1], 0],
             [
-                [0, 1, 1], [1], 0]
-            // [
-            //     [1, 0, 0], [1], 0],
-            // [
-            //     [1, 0, 1], [1], 0],
-            // [
-            //     [1, 1, 0], [1], 0],
-            // [
-            //     [1, 1, 1], [1], 0]
+                [0, 1, 1], [1], 0],
+            [
+                [1, 0, 0], [1], 0],
+            [
+                [1, 0, 1], [1], 0],
+            [
+                [1, 1, 0], [1], 0],
+            [
+                [1, 1, 1], [1], 0]
         ];
         this.developLessonPlan3XOR(this.seed+"xor");
         this.timePerLesson = 100;
@@ -256,6 +236,7 @@ class Environment_Puzzle{
             p.translate(ddx, ddy);
             p.fill(255);
             p.text(""+lson[0] + "  i|o->  " + lson[1], 0, -23);
+            p.text("lecture# "+ GENE_ROBUSTNESS_SCORES.length + "  of " + GENE_ROBUSTNESS_TARGET, 0, -43);
             // Draw the max bar
             p.stroke(255);
             p.strokeWeight(1);
@@ -263,6 +244,10 @@ class Environment_Puzzle{
 
             p.fill(0);
             p.rect(this.posX, 0, 20, 20);
+
+            p.fill(255);
+            let rdble = Math.floor(this.posX);
+            p.text(rdble, 0, 40);
 
         p.pop();
     }
@@ -277,6 +262,9 @@ class Environment_Puzzle{
             // p.stroke(255);
             // p.strokeWeight(1);
             p.noStroke();
+            p.fill(255);
+            let scr = 1 - this.lessonPlans[ this.currentLessonPlanIndex ][ 2 ];
+            p.text("scre: " + Math.floor(scr*100) + " % ", 0, -20);
             for(let i = 0;i < this.lessonPlans.length;i++){
                 let totalScore = this.lessonPlans[i][2];
                 
@@ -304,7 +292,7 @@ class Environment_Puzzle{
         p.pop();
     }
 
-    stepXORLogic(agentsOutput){
+    stepXORLogic(agentsOutput, boy){
 
         // Pull towards middle
         let distFromRest = -this.posX;
@@ -320,10 +308,10 @@ class Environment_Puzzle{
             this.velX+=0.8;
         }
 
-        if(BOY.aKeyDown){
+        if(boy.aKeyDown){
             this.velX-=0.8;
         }
-        if(BOY.dKeyDown){
+        if(boy.dKeyDown){
             this.velX+=0.8;
         }
 
@@ -342,29 +330,26 @@ class Environment_Puzzle{
         let lesson = this.lessonPlans[this.currentLessonPlanIndex];
         let scr = ( this.posX + this.maxRange ) / ( 2 * this.maxRange );
         let decimalError = Math.abs(scr - lesson[1][0]);
-        //if(this.timeIndex%50===0) console.log("decimalError", decimalError)
-        //Calculate agent juice respond
-        if(decimalError < 0.5) BOY.rewardJuiceStimulation(1);//Math.abs(decimalError-0.5));
-        else if(decimalError > 0.5) BOY.painJuiceStimulation(1);//(Math.abs(decimalError-0.6));
         // Add score into the lesson
         lesson[2] += decimalError / this.timePerLesson;
+
+        return decimalError;
     }
 
     refreshSunHeight(){
         this.sunAngle = this.timeIndex / 230; // 1400;
-        this.day = Math.floor( this.sunAngle / ( 2 * Math.PI ) );
         this.sunHeight = 0.5 * Math.sin( this.sunAngle ) + 0.5;
         
     }
 
-    step(agentsOutput){
+    step(agentsOutput, boy){
         
         this.timeIndex++;
 
-        this.refreshSunHeight(); // can't effect the sun with the 'agentsOutput' just like real life
+        this.refreshSunHeight();
 
         //this.stepPendulumLogic(agentsOutput);
-        this.stepXORLogic(agentsOutput);
+        return this.stepXORLogic(agentsOutput, boy);
     }
 
     computeFinalScore(){
