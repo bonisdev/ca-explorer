@@ -9,7 +9,6 @@ class Environment_Puzzle{
         // Propogate the agent view + existing signals 
         let boysOutput = boy.stepWithInput(agentView);
 
-        //console.log(output)
 
         // Consciousness first
         for(let i = 0;i < env.fpd;i++) env.step(boysOutput);
@@ -52,11 +51,11 @@ class Environment_Puzzle{
             
             // Add the previous score in (currentLessonPlanIndex is not yet updated to newest updatedLessonIndex)
             this.allLessonScores.push({
-                s: this.lessonPlans[ this.currentLessonPlanIndex ][2],
+                s: this.lessonPlans[ this.currentLessonPlanIndex ][ 2 ],
                 lc: this.learningCycle
             });
 
-            this.lessonPlans[ updatedLessonIndex ][2] = 0;
+            this.lessonPlans[ updatedLessonIndex ][ 2 ] = 0;
 
             // At the end of the lesson plan?
             if(this.currentLessonPlanIndex === this.lessonPlans.length-1){
@@ -65,7 +64,9 @@ class Environment_Puzzle{
 
             // ENDING CONDITION?!
             // This makes it such that there are 3 complete learnign cycles before final scores are tallied up
-            if(this.learningCycle === 4){
+            if(this.learningCycle === this.learningCycles_PerNatureConfig + 1){
+
+                // Roll over bio configuration
                 this.computeFinalScore();
             }
         }
@@ -138,20 +139,21 @@ class Environment_Puzzle{
             [
                 [0, 1, 0], [1], 0],
             [
-                [0, 1, 1], [1], 0],
-            [
-                [1, 0, 0], [1], 0],
-            [
-                [1, 0, 1], [1], 0],
-            [
-                [1, 1, 0], [1], 0],
-            [
-                [1, 1, 1], [1], 0]
+                [0, 1, 1], [1], 0]
+            // [
+            //     [1, 0, 0], [1], 0],
+            // [
+            //     [1, 0, 1], [1], 0],
+            // [
+            //     [1, 1, 0], [1], 0],
+            // [
+            //     [1, 1, 1], [1], 0]
         ];
-        this.setLessonPlan3XOR(this.seed+"xor");
+        this.developLessonPlan3XOR(this.seed+"xor");
         this.timePerLesson = 100;
         this.currentLessonPlanIndex = 0;//index
         this.learningCycle = 1;
+        this.learningCycles_PerNatureConfig  = 3;   // 3 times
         this.allLessonScores = [];//{s: 0.0212123, lc: 1}// VERY GOOOD SCORE, FIRST time through a lesson
 
         this.FINAL_SCORE = null;
@@ -167,10 +169,11 @@ class Environment_Puzzle{
         this.massVel = {vx : 0, vy: 0}
     }
 
-    setLessonPlan3XOR(seeed){
+    developLessonPlan3XOR(seeed){
         let sid = new CustomRandom_sha(seeed);
         for(let i = 0;i < this.lessonPlans.length;i++){
             this.lessonPlans[i][1] = sid.random() < 0.5 ? [1] : [0];
+            this.lessonPlans[i][2] = 0;
         }
     }
 

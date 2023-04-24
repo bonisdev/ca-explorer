@@ -12,7 +12,8 @@
         <script src="environment_puzzles.js"></script>
         
         <script src="ICA_HelperFuncs.js"></script>
-        <script src="ICA_v13.js"></script>
+        <script src="ICA_v14.js"></script>
+        <script src="EMC_v1.js"></script>
 
         <style>
             body{
@@ -70,7 +71,7 @@
 		<hr>
 		<button id="sstop" onclick="toggleRunner()">stop</button>
 		<!--<button id="framep" onclick="oneFrame()">frame+</button> -->
-        <button id="nuSeed" onclick="resetSeeds()">generate nu seed</button>
+        <button id="nuSeed" onclick="resetSeeds(null, null)">generate nu seed</button>
 		<br>
 		
 		<span>seed history:</span>
@@ -93,20 +94,21 @@
 
 		<br>
         <span>previous seeds:</span>
-        <textarea readonly cols="33" id="prevSeeds"></textarea>
+        <textarea readonly cols="39" rows="5" id="prevSeeds"></textarea>
 
 		<br>
         <span>custom seed:</span>
 		<input type="text" id="customDefiendSeed" name="fname" placeholder="1381743907868.0.6827750727547593">
 		<button id="loadCustomSeed" onclick="customLoad()">load</button>
-
+		<button id="loadCustomSeedwtweak" disabled onclick="customLoad_nTweak()">load n tweak</button>
+        <span>Steps per frame: <span id="stpsPerFrm"></span></span>
+        <button onclick="increaseStep()">+++</button>
+        <button onclick="decreaseStep()">---</button>
 		<br>
+
         <!-- Right side-->
         <div class="gene-manager" id="gnLibrary">
-            
         </div>
-
-
         <!-- Left side-->
         <div id="p5BoyCanvas">
         </div>
@@ -118,13 +120,10 @@
 		<p id="seedDisplayer">
         </p>
 
-        <p></p>
-
 		<hr>
 		<br>
 
         <p>Simulation time index: <span id="timeShower"></span></p>
-        <p>Steps per frame: <span id="stpsPerFrm"></span></p>
         <p>Computation time per frame: <span id="msTime"></span></p>
 
 		<br>
@@ -147,11 +146,16 @@
 
             // For fast processing
             //var FRAME
-            var STEPS_PER_FRAME = 27;//25;// artificially speed it up
+            var STEPS_PER_FRAME = 1;//25;// artificially speed it up
             var aveTimesPerFrame = ( new Array( this.totalInputs ) ).fill( 0 );
             var frameTimeIndex = 0;
             var visualTimeStiffle = 44; // 40 ms per p5js frame this is about ~24 frames per second
             var tweakGenome = "";
+
+            // Thoroughness - test the cellular automata by shaking up the biology
+            // and the XOR chance
+            var GENE_ROBUSTNESS_TARGET = 3;
+            var GENE_ROBUSTNESS_SCORES = [];
 
             // Current Environment + CA displayed on screen
             var WORLD = null;//new World( randWorldSeed, document.getElementById( 'canvForGPUToUse' ) );
@@ -160,6 +164,7 @@
             var DESIRED_BOY_SIZE = 26;
 
             var LEAST_ERROR = 99999;
+            var LAST_ERROR = 9999;
 
             var INVESTIGATIVE_PU = null;
 
@@ -167,47 +172,69 @@
             ENV.timeIndex = 0;
 
             var SEEDS_TO_LOOP = [
-                "1682197843124.0.4486529861949189",//like 43
-                "1682198522797.0.14869116438378316",     //like 32
-                "1682199739894.0.6944526969793823",      //nmice one
-                "1682198967180.0.1909125310379114",  //47
-                "1682199784797.0.3034564388902439",  //44
-                "1682200096784.0.19756876132214707" //34
+                "1682313348019.0.7849123581272277",
+                "1682313356172.0.7071687098447073",
+                "1682313425880.0.6755836157645201",
+                "1682313465245.0.7060678418511148",
+                "1682313486888.0.5435525115362028",
+                "1682313498958.0.12063566049400509",
+                "1682313566969.0.9739312774666244",
+                "1682313570000.0.9326770239172675"
             ];
+            //1682248284214.0.3979240035740943
+            //1682252031571.0.6175452156962185
             var CURRENT_LOOP_INDEX = Math.floor( Math.random() * SEEDS_TO_LOOP.length );
-
             // Gene lister
             var GENE_LIBRARY = [];
 
 
-            resetSeeds(null);
+            resetSeeds(null, null);
 
-            function resetSeeds(forcedSeed){
+            function resetSeeds(forcedSeed, forcedTotalGene){
                 if(BOY && BOY.p5Ref){
                     BOY.p5Ref.remove();
                 }
-                CURRENT_LOOP_INDEX++;
-                //console.log("CURRENT_LOOP_INDEX", CURRENT_LOOP_INDEX)
+                CURRENT_LOOP_INDEX++; //console.log("CURRENT_LOOP_INDEX", CURRENT_LOOP_INDEX)
                 CURRENT_LOOP_INDEX = CURRENT_LOOP_INDEX % SEEDS_TO_LOOP.length
                 let seedToUse = SEEDS_TO_LOOP[CURRENT_LOOP_INDEX];
-                // console.log("CURRENT_LOOP_INDEX", CURRENT_LOOP_INDEX);
-                //"1680588971667.0.7229796103317296"    <- nice one of a super critical example
-                startSeed = ""+seedToUse;   //use prebuilt
-                startSeed = Date.now()+"."+Math.random();//Ole faithful doin it normal
+                
 
-                if(forcedSeed && (""+forcedSeed).length > 7) startSeed = "" + forcedSeed;
+                // ROBUST TEST THE SEED?!
+                if(GENE_ROBUSTNESS_SCORES.length === GENE_ROBUSTNESS_TARGET){
+                    let actualFinalError_AfterRobustnessTesting = Math.max(...GENE_ROBUSTNESS_SCORES);
 
-                document.getElementById('prevSeeds').value += startSeed + '\n';
+                    document.getElementById('prevSeeds').value += startSeed + ' ' + (Math.floor(actualFinalError_AfterRobustnessTesting*10000)) + '\n';
+                    if(LEAST_ERROR >= actualFinalError_AfterRobustnessTesting || actualFinalError_AfterRobustnessTesting < 0.41){
+                        LEAST_ERROR = actualFinalError_AfterRobustnessTesting;
+                        addGeneToLibrary(startSeed, actualFinalError_AfterRobustnessTesting);
+                    }
+
+                    GENE_ROBUSTNESS_SCORES = [];
+                }
+                
+                
+                // STASRT OF NEW SEED?!
+                if(GENE_ROBUSTNESS_SCORES.length === 0){
+                    startSeed = ""+seedToUse;   //use prebuilt
+                    startSeed = Date.now()+"."+Math.random();//Ole faithful doin it normal
+
+                    if(forcedSeed && (""+forcedSeed).length > 7) startSeed = "" + forcedSeed;
+                }
+
+
+                
+
+                //document.getElementById('prevSeeds').value += startSeed + '\n';
 
                 //console.log("Entire Start Seed: " + startSeed);
                 document.getElementById('seedDisplayer').innerHTML = startSeed;
 
-                
+                // console.log('start seed', startSeed, 'robustness scores', GENE_ROBUSTNESS_SCORES.length)
 
                 // Oracle control occurs here
                 randWorldSeed = "ws" + startSeed;
-                randBoySeed = "gs" + startSeed;
-                randEnvSeed = "es" + startSeed;
+                randBoySeed = "gs" + startSeed;// + ":" + GENE_ROBUSTNESS_SCORES.length;
+                randEnvSeed = "es" + startSeed + ":" + GENE_ROBUSTNESS_SCORES.length;
                 // console.log( 'Rand world seed:', randWorldSeed );
                 // console.log( 'Rand grid seed:', randBoySeed );
                 // console.log( 'Rand env seed:', randEnvSeed );
@@ -215,43 +242,69 @@
                 running = true;
 
 
-                // SEE IF THERE EXISTS A GENE TO TWEAK
-                if(tweakGenome.length > 0){
-                    let og = new ICA_v13( // Create new Interactive Cellular Automata v13 object
-                        DESIRED_BOY_SIZE, 
-                        randBoySeed, 
-                        null
-                    );
-                    let tweakedBoy = og.getTweakedGene(0.1, 'tweakval'+Date.now()+"."+Math.random());//og.totalGene
-                    BOY = new ICA_v13( // Create new Interactive Cellular Automata v13 object
-                        DESIRED_BOY_SIZE, 
-                        randBoySeed, 
-                        document.getElementById('p5BoyCanvas')
-                    );
-                }
-                else{
-                    BOY = new ICA_v13( // Create new Interactive Cellular Automata v13 object
-                        DESIRED_BOY_SIZE, 
-                        randBoySeed, 
-                        document.getElementById('p5BoyCanvas')
-                    );
-                }
-                // console.log(tweakGenome);
+                //// SEE IF THERE EXISTS A GENE TO TWEAK (disabled for now)
+                //if(tweakGenome.length > 0){
+                //    let og = new ICA_v14( // Just to generate the proper genome from this one
+                //        DESIRED_BOY_SIZE,  
+                //        {
+                //            alphaSeed: ""+tweakGenome,
+                //            customFullGene: null
+                //        }, 
+                //        null
+                //    );
+                //    let tweakedGeneArray = og.getTweakedGene(0, 'tweakval'+Date.now()+"."+Math.random());//og.totalGene
+                //    BOY = new ICA_v14( // Create new Interactive Cellular Automata v13 object
+                //        DESIRED_BOY_SIZE, 
+                //        {
+                //            alphaSeed: randBoySeed,// will be random and only used for the i/o configureation and env pattern
+                //            customFullGene: tweakedGeneArray,
+                //            ioSeed: randBoySeed + ":" + GENE_ROBUSTNESS_SCORES.length
+                //        }, 
+                //        document.getElementById('p5BoyCanvas')
+                //    );
+                //}
+                // no tweaked genome has been selected, just go random
+                //else{
+                BOY = new ICA_v14( // Create new Interactive Cellular Automata v13 object
+                    DESIRED_BOY_SIZE, 
+                    {
+                        alphaSeed: randBoySeed,
+                        customFullGene: null,
+                        ioSeed: randBoySeed + ":" + GENE_ROBUSTNESS_SCORES.length
+                    }, 
+                    document.getElementById('p5BoyCanvas')
+                );
+                //}
 
-                ENV = new Environment_Puzzle(randEnvSeed)
+                ENV = new Environment_Puzzle(randEnvSeed);
                 ENV.timeIndex = 0;
-
                 INVESTIGATIVE_PU = null;
             }
 
+            function increaseStep(){
+                STEPS_PER_FRAME += 5;
+            }
+            function decreaseStep(){
+                STEPS_PER_FRAME -= 5;
+            }
+
             function customLoad(){
-                var value = '' + document.getElementById('customDefiendSeed').value;  
-                resetSeeds('' + value);
+                var value = '' + document.getElementById('customDefiendSeed').value;
+                GENE_ROBUSTNESS_SCORES = [];
+                tweakGenome = "";
+                resetSeeds('' + value, null);
+            }
+
+            function customLoad_nTweak(){
+                var value = '' + document.getElementById('customDefiendSeed').value;
+                GENE_ROBUSTNESS_SCORES = [];
+                tweakGenome = ""+value;
+                resetSeeds('' + value, null);
             }
 
             function getSqitchup(selectObject) {
                 var value = selectObject.value;  
-                resetSeeds('' + value);
+                resetSeeds('' + value, null);
             }
 
             function changeEnvironmentScoringFunction(selectObject){
@@ -262,11 +315,11 @@
                 var clickedElement = event.target.parentNode;
                 selectGeneFromList();
 
-                console.log(clickedElement.children);
-                console.log('tweak gene', clickedElement.children[0].innerText);
-                console.log('prev score:', clickedElement.children[1].innerText);
+                //console.log(clickedElement.children);
+                //console.log('tweak gene', clickedElement.children[0].innerText);
+                //console.log('prev score:', clickedElement.children[1].innerText);
 
-                if(!clickedElement.classList.contains('gene-selected')){
+                if(!clickedElement.classList.contains('gene-selected') && tweakGenome.length < 1){
                     tweakGenome = "" + clickedElement.children[0].innerText;
                     clickedElement.classList.add('gene-selected');
                 }
@@ -294,11 +347,11 @@
                     "<p style=\"z-index: 3;\">" + seeed + "</p>" +
                     "<p style=\"z-index: 3;\">" + score + "</p>";
 
-                let butt = document.createElement('button');
-                butt.innerText = "tweak";
-                butt.setAttribute('onclick', 'tweakGene(event)');
+                //let butt = document.createElement('button');
+                //butt.innerText = "tweak";
+                //butt.setAttribute('onclick', 'tweakGene(event)');
 
-                entry.appendChild(butt);;
+                //entry.appendChild(butt);;
                 gn.appendChild(entry);
 
             }
@@ -348,7 +401,7 @@
             // Constant loop
             function moveFrame(){
 
-                if(BOY && BOY.the_juice_grid){
+                if(BOY && BOY.the_atty_grid){
                     
                     // Record computation time metrics (START)
                     let startComputationTime = Date.now();
@@ -366,16 +419,19 @@
                     aveTimesPerFrame[frameTimeIndex%aveTimesPerFrame.length] = deltaComputeTime;
                     frameTimeIndex++;
 
-                    //console.log("final_score", final_score)
+                    // Final score has been produced
                     if(final_score !== null){
 
-                        if(LEAST_ERROR >= final_score){
-                            LEAST_ERROR = final_score;
-                            addGeneToLibrary(startSeed, final_score);
-                        }
+                        //LAST_ERROR = final_score;
 
+                        if(final_score > LEAST_ERROR){
+                            while(GENE_ROBUSTNESS_SCORES.length < GENE_ROBUSTNESS_TARGET) GENE_ROBUSTNESS_SCORES.push(final_score);
+                        }
+                        else{
+                            GENE_ROBUSTNESS_SCORES.push(final_score);
+                        }
                         
-                        resetSeeds(null);
+                        resetSeeds(null, null);
                     }
 
                     // Aggregate information for new tone values

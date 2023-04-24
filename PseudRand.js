@@ -41,12 +41,16 @@ function toByteArray(hexString) {
 
 var HASHER = CHelper__B.hasher_256;
 
-function CustomRandom_sha(newHash, preduns){
+function CustomRandom_sha(newHash, preduns, forcedGene){
 	this.hash = "@legatuscoin"+newHash;
 	this.runs = 0;
 	this.preRun = isNaN(preduns)?1:preduns;
 	this.precalced = [];
 	this.precalcedCounter = -1;
+
+	this.fgMode = forcedGene && forcedGene.length > 0;
+	this.fgGene = forcedGene;
+	this.fgInd = -1;
 
 	this.totalVals = [];
 
@@ -79,12 +83,17 @@ function CustomRandom_sha(newHash, preduns){
 	};
 
 	this.GET_GENE = function(){
+		if(this.fgMode){
+			this.fgInd = (this.fgInd+1) % this.fgGene.length;
+			return this.fgGene[ this.fgInd ];
+		}
         let kk = this.random();
         this.totalVals.push(kk);
         return kk;
     };
 
     this.END_GENE = function(){
+		if(this.fgMode) return this.fgGene;
         return this.totalVals;
     };
 

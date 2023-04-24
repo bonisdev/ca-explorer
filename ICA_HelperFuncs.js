@@ -4,6 +4,32 @@
 
 // const {GPU} = require('gpu.js');
 
+class Atty {
+
+    constructor(val){
+        this.val = isNaN(val) ? 0 : val;
+        this.qval = this.val;//where it will be
+    }
+
+    static nudge(att, qv){
+        att.qval = qv;
+    }
+
+    static collapse(att){
+        att.val = att.qval;
+    }
+
+    static input_stim(att){
+        att.val = 1;
+        att.qval = 1;
+    }
+
+    static output_stim(att){
+        att.val = 0;
+        att.qval = 0;
+    }
+}
+
 // A juice instance contains key attributes responsible for producing 
 // and decaying a juice value + keeping its ghost potentials
 class Juice {
